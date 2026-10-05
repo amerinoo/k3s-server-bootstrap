@@ -1,0 +1,7 @@
+*.retry
+.DS_Store
+
+# Real server inventories stay local.
+inventories/*
+!inventories/example/
+!inventories/example/**

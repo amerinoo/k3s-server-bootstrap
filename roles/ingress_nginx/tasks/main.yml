@@ -1,0 +1,22 @@
+- name: Install or reconcile ingress-nginx
+  ansible.builtin.command:
+    cmd: >-
+      kubectl apply
+      --server-side
+      --force-conflicts
+      -f "{{ ingress_nginx_manifest_url }}"
+  register: ingress_nginx_apply
+  changed_when: >-
+    'configured' in ingress_nginx_apply.stdout or
+    'created' in ingress_nginx_apply.stdout or
+    'serverside-applied' in ingress_nginx_apply.stdout
+
+- name: Wait for ingress-nginx controller to be ready
+  ansible.builtin.command:
+    cmd: >-
+      kubectl wait
+      --namespace "{{ ingress_nginx_namespace }}"
+      --for=condition=ready pod
+      --selector=app.kubernetes.io/component=controller
+      --timeout="{{ ingress_nginx_ready_timeout }}"
+  changed_when: false

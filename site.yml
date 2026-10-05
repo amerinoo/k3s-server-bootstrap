@@ -1,0 +1,44 @@
+- name: Bootstrap infrastructure user
+  hosts: bootstrap_servers
+  become: true
+
+  pre_tasks:
+    - name: Check local infrastructure SSH key
+      ansible.builtin.stat:
+        path: "{{ infra_ssh_private_key }}"
+      delegate_to: localhost
+      become: false
+      register: infra_ssh_key
+
+    - name: Generate local infrastructure SSH key
+      ansible.builtin.command:
+        cmd: >-
+          ssh-keygen -t ed25519
+          -f {{ infra_ssh_private_key }}
+          -N ""
+          -C "k3s-server-bootstrap"
+      delegate_to: localhost
+      become: false
+      when: not infra_ssh_key.stat.exists
+
+  roles:
+    - user
+
+  post_tasks:
+    - name: Register host using infrastructure user
+      ansible.builtin.add_host:
+        name: "{{ inventory_hostname }}_infra"
+        groups: infra_servers
+        ansible_host: "{{ ansible_host }}"
+        ansible_user: "{{ infra_user }}"
+        ansible_ssh_private_key_file: "{{ infra_ssh_private_key }}"
+
+- name: Configure K3s server
+  hosts: infra_servers
+  become: true
+
+  roles:
+    - common
+    - k3s
+    - ingress_nginx
+    - argocd

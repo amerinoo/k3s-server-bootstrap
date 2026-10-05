@@ -1,0 +1,5 @@
+disable:
+{% for component in k3s_disable %}
+  - {{ component }}
+{% endfor %}
+write-kubeconfig-mode: "{{ k3s_write_kubeconfig_mode }}"

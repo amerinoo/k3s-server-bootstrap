@@ -1,0 +1,66 @@
+- name: Ensure K3s configuration directory exists
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    mode: "0755"
+
+- name: Write K3s configuration
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: /etc/rancher/k3s/config.yaml
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Check whether K3s is installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
+
+- name: Install K3s
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -sfL "{{ k3s_install_url }}" | sh -
+  args:
+    executable: /bin/bash
+  when: not k3s_binary.stat.exists
+
+- name: Ensure K3s is enabled and running
+  ansible.builtin.systemd:
+    name: k3s
+    enabled: true
+    state: started
+
+- name: Ensure infrastructure user kube directory exists
+  ansible.builtin.file:
+    path: "/home/{{ infra_user }}/.kube"
+    state: directory
+    owner: "{{ infra_user }}"
+    group: "{{ infra_user }}"
+    mode: "0700"
+
+- name: Copy K3s kubeconfig for infrastructure user
+  ansible.builtin.copy:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "/home/{{ infra_user }}/.kube/config"
+    remote_src: true
+    owner: "{{ infra_user }}"
+    group: "{{ infra_user }}"
+    mode: "0600"
+
+- name: Install kubectl wrapper without exposing K3s server config
+  ansible.builtin.copy:
+    dest: /usr/local/bin/kubectl
+    owner: root
+    group: root
+    mode: "0755"
+    content: |
+      #!/bin/sh
+      export K3S_CONFIG_FILE=/dev/null
+
+      KUBECONFIG_PATH="${KUBECONFIG:-$HOME/.kube/config}"
+      if [ ! -f "$KUBECONFIG_PATH" ]; then
+        KUBECONFIG_PATH=/etc/rancher/k3s/k3s.yaml
+      fi
+
+      exec /usr/local/bin/k3s kubectl --kubeconfig "$KUBECONFIG_PATH" "$@"

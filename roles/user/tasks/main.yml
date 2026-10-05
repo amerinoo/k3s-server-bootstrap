@@ -1,0 +1,36 @@
+- name: Ensure infrastructure user exists
+  ansible.builtin.user:
+    name: "{{ infra_user }}"
+    shell: "{{ infra_user_shell }}"
+    create_home: true
+    groups: sudo
+    append: true
+    state: present
+
+- name: Ensure infrastructure user SSH directory exists
+  ansible.builtin.file:
+    path: "/home/{{ infra_user }}/.ssh"
+    state: directory
+    owner: "{{ infra_user }}"
+    group: "{{ infra_user }}"
+    mode: "0700"
+
+- name: Install infrastructure user authorized key
+  ansible.builtin.copy:
+    dest: "/home/{{ infra_user }}/.ssh/authorized_keys"
+    content: "{{ lookup('file', infra_ssh_public_key) | trim }}
+"
+    owner: "{{ infra_user }}"
+    group: "{{ infra_user }}"
+    mode: "0600"
+
+- name: Configure passwordless sudo for infrastructure user
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/{{ infra_user }}"
+    content: "{{ infra_user }} ALL=(ALL) NOPASSWD:ALL
+"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: "/usr/sbin/visudo -cf %s"
+  when: infra_passwordless_sudo | bool
